@@ -216,7 +216,7 @@ input[type=search]::placeholder{color:var(--ink-soft)}
       <li><b>简体文字</b>　由繁体经 OpenCC 自动转换，个别字可能与通行本不同。</li>
       <li><b>各站概述、大事、人物交集</b>　由 AI（Claude）撰写，主要依据对《年谱》的记忆，只对照《明史》本传核过大事的有无与先后；《年谱》原文没有找到可用的电子本，具体月日未逐条查证。年谱里一些近乎传奇的记载，文中已注明是传闻。</li>
       <li><b>作品归站</b>　诗依原书“居夷诗”“赣州诗”“居越诗”等分卷，文章、书信、奏疏、公移依原书所注的干支或年月，由程序归入各站；只注了年份、而那一年他换过地方的，可能归错。《传习录》上卷记的是1512至1518年间的谈话，放在刻印它的赣州一站。</li>
-      <li><b>琴声</b>　<a href="https://commons.wikimedia.org/wiki/File:Guqin-Zuiyu_Changwan.ogg" target="_blank" rel="noopener">《醉渔唱晚》</a>（CC BY-SA 3.0）与<a href="https://commons.wikimedia.org/wiki/File:Pingsha_Luoyan.ogg" target="_blank" rel="noopener">《平沙落雁》</a>（CC BY 2.5），均由 Charlie Huang 演奏并录音，取自维基共享资源。本站把原文件转成了单声道 MP3 并调整了音量，转换后的文件沿用各自原来的许可。</li>
+      <li><b>琴声</b>　<a href="https://commons.wikimedia.org/wiki/File:Kongzi_Duyi.ogg" target="_blank" rel="noopener">《孔子读易》</a>与<a href="https://commons.wikimedia.org/wiki/File:Pei_Lan.ogg" target="_blank" rel="noopener">《佩兰》</a>，均由 Charlie Huang 演奏并录音，取自维基共享资源，依 CC BY 2.5 许可使用。本站把原文件转成了 MP3 并调整了音量。</li>
       <li><b>地图</b>　为手绘示意，海岸与河道按今天的走向简化，不代表明代地理，也不是精确地图。</li>
     </ul>
   </footer>
@@ -644,7 +644,7 @@ go(m?+m[1]-1:0);
 (function(){
   const btn=document.getElementById("qinBtn"),vol=document.getElementById("qinVol"),now=document.getElementById("qinNow"),nx=document.getElementById("qinNext");
   if(!btn)return;
-  const TRACKS=[{src:"zuiyu.mp3",t:"《醉渔唱晚》"},{src:"pingsha.mp3",t:"《平沙落雁》"}];
+  const TRACKS=[{src:"duyi.mp3",t:"《孔子读易》"},{src:"peilan.mp3",t:"《佩兰》"}];
   let a=null,i=0,on=false;
   const setVol=()=>{if(a)a.volume=Math.pow(vol.value/100,1.6);};
   function play(k){
