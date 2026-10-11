@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="王阳明一生十八站的可交互地图：每一站的经历、大事和诗文全文，可全文检索，也可按人物查看。">
+<title>王阳明行迹图</title>
+<style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<style>
+/* 布局：上方横向年表，下方左图右文；地图是主角，朱砂只用在“当前这一站” */
+:root{
+  --bg:#dfe8e4;        /* 天青釉底 */
+  --land:#eef3ef;      /* 陆地，釉面留白 */
+  --sea:#c3d5d1;       /* 海 */
+  --ink:#1c2a2b;       /* 墨 */
+  --ink-soft:#56686a;  /* 淡墨 */
+  --line:#a9bcb8;      /* 界线 */
+  --river:#7fa3a6;     /* 水 */
+  --seal:#b3271f;      /* 印泥朱砂 */
+  --seal-ink:#fff6f2;  /* 朱底上的字 */
+  --panel:#f4f7f4;     /* 文字面板 */
+  --display:"Ma Shan Zheng","Kaiti SC","STKaiti","KaiTi",serif;
+  --body:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10181a;--land:#1b272a;--sea:#0b1113;--ink:#dfe8e4;--ink-soft:#8fa3a3;
+    --line:#35474a;--river:#4d7377;--seal:#e2584a;--seal-ink:#1a0d0b;--panel:#172124;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10181a;--land:#1b272a;--sea:#0b1113;--ink:#dfe8e4;--ink-soft:#8fa3a3;
+  --line:#35474a;--river:#4d7377;--seal:#e2584a;--seal-ink:#1a0d0b;--panel:#172124;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.8;padding-inline:20px;padding-block:28px 56px}
+.wrap{max-width:1180px;margin-inline:auto;display:flex;flex-direction:column;gap:22px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--seal);outline-offset:2px}
+
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 20px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(2.2rem,5vw,3.2rem);line-height:1.1;margin:0;letter-spacing:.04em}
+.sub{color:var(--ink-soft);font-size:.95rem;margin:0}
+
+/* 年表 */
+.strip{display:flex;gap:0;overflow-x:auto;border-block:1px solid var(--line);scrollbar-width:thin}
+.strip button{flex:0 0 auto;padding:10px 14px 9px;text-align:left;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:0;line-height:1.35}
+.strip button:last-child{border-right:0}
+.strip .yr{font-size:.74rem;color:var(--ink-soft);font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.strip .pl{font-family:var(--display);font-size:1.3rem}
+.strip button:hover{background:var(--land)}
+.strip button[aria-current="true"]{background:var(--seal);color:var(--seal-ink)}
+.strip button[aria-current="true"] .yr{color:var(--seal-ink)}
+.strip button.past .pl{color:var(--ink-soft)}
+
+.stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;align-items:start}
+@media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr);gap:20px}}
+
+/* 地图 */
+.mapbox{position:sticky;top:env(safe-area-inset-top,0px);margin:0}
+@media (max-width:860px){.mapbox{position:static}}
+svg.map{display:block;width:100%;height:auto;max-height:calc(100vh - 40px);background:var(--sea);border:1px solid var(--line)}
+.land{fill:var(--land);stroke:var(--line);stroke-width:1}
+.river{fill:none;stroke:var(--river);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.river.minor{stroke-width:1}
+.rlabel{font-family:var(--body);font-size:12px;fill:var(--river);letter-spacing:.3em}
+.route-base{fill:none;stroke:var(--ink-soft);stroke-width:1;stroke-dasharray:2 5;opacity:.4}
+.route{fill:none;stroke:var(--ink);stroke-width:1.6;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;opacity:.75;transition:stroke-dashoffset .9s ease}
+.route.on{stroke-dashoffset:0}
+.route.now{stroke:var(--seal);stroke-width:2.8;opacity:1}
+.pt{cursor:pointer}
+.pt circle.dot{fill:var(--land);stroke:var(--ink-soft);stroke-width:1.5;transition:fill .3s}
+.pt.seen circle.dot{fill:var(--ink);stroke:var(--ink)}
+.pt.now circle.dot{fill:var(--seal);stroke:var(--seal)}
+.pt circle.ring{fill:none;stroke:var(--seal);stroke-width:1.5;opacity:0}
+.pt.now circle.ring{opacity:.7;animation:ring 2.2s ease-out infinite}
+.pt circle.hit{fill:transparent}
+.pt text{font-family:var(--display);font-size:20px;fill:var(--ink-soft);stroke:var(--land);stroke-width:4;paint-order:stroke;stroke-linejoin:round}
+.pt.seen text{fill:var(--ink)}
+.pt.now text{fill:var(--seal);font-size:25px}
+.pt:focus-visible{outline:none}
+.pt:focus-visible circle.dot{stroke:var(--seal);stroke-width:3}
+@keyframes ring{from{r:7;opacity:.8}to{r:22;opacity:0}}
+.scale line{stroke:var(--ink-soft);stroke-width:1.2}
+.scale text{font-family:var(--body);font-size:11px;fill:var(--ink-soft)}
+figcaption{font-size:.8rem;color:var(--ink-soft);margin-top:8px;line-height:1.6}
+@media (prefers-reduced-motion:reduce){.route{transition:none}.pt.now circle.ring{animation:none}}
+
+/* 文字 */
+.detail{min-width:0;display:flex;flex-direction:column;gap:18px}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.nav .count{font-size:.85rem;color:var(--ink-soft);font-variant-numeric:tabular-nums;letter-spacing:.08em}
+.nav .btns{display:flex;gap:8px}
+.nav button{border:1px solid var(--ink);padding:6px 16px;font-size:.92rem;line-height:1.5}
+.nav button:hover:not(:disabled){background:var(--ink);color:var(--bg)}
+.nav button:disabled{opacity:.3;cursor:default}
+.head{display:flex;gap:16px;align-items:flex-start}
+.seal{flex:0 0 auto;background:var(--seal);color:var(--seal-ink);font-family:var(--display);font-size:2.2rem;line-height:1.05;padding:10px 8px;writing-mode:vertical-rl;letter-spacing:.06em;border-radius:3px}
+.head h2{font-size:1.45rem;font-weight:700;margin:0 0 6px;line-height:1.35;text-wrap:balance}
+.meta{margin:0;color:var(--ink-soft);font-size:.9rem;line-height:1.7}
+.visits{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.82rem;color:var(--ink-soft)}
+.visits button{border:1px solid var(--line);padding:1px 9px;font-variant-numeric:tabular-nums;line-height:1.6}
+.visits button:hover{border-color:var(--ink)}
+.visits button[aria-current="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.body p{margin:0 0 .9em;max-width:34em}
+.body p:last-child{margin-bottom:0}
+h3{font-size:.8rem;font-weight:600;letter-spacing:.3em;color:var(--ink-soft);margin:0;padding-top:14px;border-top:1px solid var(--line)}
+.events{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.events li{display:grid;grid-template-columns:5.6em minmax(0,1fr);gap:12px;font-size:.93rem;line-height:1.7}
+.events .when{color:var(--seal);font-size:.82rem;font-variant-numeric:tabular-nums;padding-top:.1em}
+.works{display:flex;flex-direction:column;gap:10px;list-style:none;margin:0;padding:0}
+.works li{background:var(--panel);padding:12px 16px}
+.works .wt{font-weight:600;font-size:.95rem}
+.works .wy{color:var(--ink-soft);font-size:.82rem;margin-left:8px;font-variant-numeric:tabular-nums}
+.works blockquote{margin:5px 0 0;font-family:var(--display);font-size:1.28rem;line-height:1.6}
+.works .wn{margin:5px 0 0;font-size:.85rem;color:var(--ink-soft);line-height:1.7}
+.hint{font-size:.8rem;color:var(--ink-soft);margin:0}
+
+.src{border-top:1px solid var(--line);padding-top:18px;margin-top:20px;font-size:.84rem;color:var(--ink-soft);line-height:1.8}
+.src h3{border:0;padding:0;margin:0 0 8px}
+.src ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px;max-width:60em}
+.src b{color:var(--ink);font-weight:600}
+.src a{color:inherit;text-underline-offset:3px;word-break:break-all}
+.home{align-self:flex-start;font-size:.84rem;color:var(--ink-soft);text-decoration:none;letter-spacing:.06em;margin-bottom:-8px}
+.home:hover{color:var(--ink);text-decoration:underline;text-underline-offset:4px}
+.qin{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:.86rem;color:var(--ink-soft)}
+.qin button{border:1px solid var(--ink);padding:4px 14px;line-height:1.6;color:var(--ink)}
+.qin{flex-wrap:wrap;justify-content:flex-end}
+.qin button.mini{border-color:var(--line);padding:2px 10px;font-size:.82rem}
+.qin button:hover{background:var(--ink);color:var(--bg)}
+.qin button[aria-pressed="true"]{background:var(--seal);border-color:var(--seal);color:var(--seal-ink)}
+.qin input[type=range]{width:84px;accent-color:var(--seal)}
+/* 全集 */
+input[type=search]{font:inherit;font-size:.92rem;color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:6px 12px;width:100%;border-radius:0}
+input[type=search]::placeholder{color:var(--ink-soft)}
+.tools{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.tools .find{flex:1 1 260px;min-width:0;max-width:420px}
+.tools .bucket{font-size:.85rem;color:var(--ink-soft);text-decoration:underline;text-underline-offset:3px;padding:0}
+.tools .bucket:hover{color:var(--ink)}
+.tools .stat{font-size:.82rem;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.qres{border:1px solid var(--line);background:var(--panel);padding:10px 14px;display:flex;flex-direction:column;gap:2px;max-height:320px;overflow-y:auto}
+.qres p{margin:0 0 4px;font-size:.82rem;color:var(--ink-soft)}
+.qres button{text-align:left;padding:3px 0;font-size:.92rem;line-height:1.6;display:flex;gap:10px;justify-content:space-between;align-items:baseline}
+.qres button:hover .rt{text-decoration:underline}
+.qres .rs{flex:0 0 auto;font-size:.78rem;color:var(--ink-soft)}
+.full{display:flex;flex-direction:column;gap:12px}
+.full>p{margin:0;font-size:.86rem;color:var(--ink-soft);line-height:1.7}
+.full h4{margin:8px 0 0;font-size:.88rem;font-weight:600}
+.wl{display:flex;flex-direction:column}
+.wk{border-bottom:1px solid var(--line)}
+.wk summary{cursor:pointer;padding:6px 0;font-size:.93rem;line-height:1.6;list-style:none;display:flex;gap:10px}
+.wk summary::-webkit-details-marker{display:none}
+.wk summary::before{content:"＋";color:var(--ink-soft);flex:0 0 auto;font-size:.8rem;padding-top:.15em}
+.wk[open] summary::before{content:"－"}
+.wk[open] summary{font-weight:600}
+.wk summary:hover{color:var(--seal)}
+.wk .tx{padding:2px 0 14px 1.6em;font-family:var(--display);font-size:1.22rem;line-height:1.75;white-space:pre-line}
+.wk.hit summary{color:var(--seal)}
+.wk .tx.pr{font-family:var(--body);font-size:1rem;line-height:1.9}
+.wk .raw{font-style:normal;font-size:.72rem;color:var(--ink-soft);border:1px solid var(--line);padding:0 5px;margin-left:8px;white-space:nowrap}
+.people{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.86rem}
+.people>span{color:var(--ink-soft);margin-right:4px}
+.people button{border:1px solid var(--line);padding:1px 10px;line-height:1.7}
+.people button:hover{border-color:var(--ink)}
+.people button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.meet{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.meet button{display:grid;grid-template-columns:8.5em minmax(0,1fr);gap:12px;text-align:left;width:100%;padding:8px 0;border-bottom:1px solid var(--line);font-size:.93rem;line-height:1.7}
+.meet button:hover .mt{color:var(--seal)}
+.meet .mw{font-size:.82rem;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.meet .mw b{display:block;font-family:var(--display);font-weight:400;font-size:1.15rem;color:var(--ink)}
+.linkbtn{align-self:flex-start;border:1px solid var(--ink);padding:5px 14px;font-size:.9rem}
+.linkbtn:hover{background:var(--ink);color:var(--bg)}
+.grp{border-bottom:1px solid var(--line)}
+.grp>summary{cursor:pointer;padding:8px 0;font-weight:600;font-size:.95rem}
+.grp>.wl{padding-left:1em}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <a class="home" href="../">← 渊默的学习小院</a>
+  <header>
+    <h1>王阳明行迹图</h1>
+    <p class="sub">1472—1529 · 十八站 · 从余姚到南安。点地图上的地名，或顺着年表一站一站走；每站末尾有那里写下的全部诗文。</p>
+    <div class="qin"><span id="qinNow" hidden></span><button type="button" id="qinNext" class="mini" hidden>换一首</button><input type="range" id="qinVol" min="0" max="100" value="60" aria-label="琴声音量" hidden><button type="button" id="qinBtn" aria-pressed="false">琴声 · 开</button></div>
+  </header>
+
+  <nav class="strip" id="strip" aria-label="年表"></nav>
+
+  <div class="tools">
+    <div class="find"><input type="search" id="q" placeholder="在全部作品里找：题目或句子，如“良知”“龙场”" aria-label="搜索全部作品"></div>
+    <button type="button" class="bucket" id="bucketBtn" hidden></button>
+    <button type="button" class="bucket" id="bioBtn" hidden>读《明史》本传</button>
+    <span class="stat" id="stat">正在载入全集…</span>
+  </div>
+  <div class="qres" id="qres" hidden></div>
+  <div class="people" id="people"><span>按人物看：</span></div>
+
+  <div class="stage">
+    <figure class="mapbox">
+      <svg class="map" id="map" viewBox="0 0 780 940" role="group" aria-label="王阳明行迹地图"></svg>
+      <figcaption>示意图：海岸与河道按今天的走向简化绘制；路线只连接各站，不是实际走过的道路。地名用明代称呼，月日为农历。</figcaption>
+    </figure>
+
+    <article class="detail" id="detail" aria-live="polite"></article>
+  </div>
+
+  <footer class="src">
+    <h3>来源与说明</h3>
+    <ul>
+      <li><b>诗文正文</b>　取自维基文库《王阳明集》（即《王文成公全书》，页面上有卷一至卷三十一）。原文属公有领域，标点与整理由维基文库贡献者完成，依 CC BY-SA 4.0 许可使用。<a href="https://zh.wikisource.org/wiki/王陽明集" target="_blank" rel="noopener">zh.wikisource.org/wiki/王陽明集</a></li>
+      <li><b>传记</b>　《明史》卷一百九十五《王守仁传》，取自维基文库。</li>
+      <li><b>简体文字</b>　由繁体经 OpenCC 自动转换，个别字可能与通行本不同。</li>
+      <li><b>各站概述、大事、人物交集</b>　由 AI（Claude）撰写，主要依据对《年谱》的记忆，只对照《明史》本传核过大事的有无与先后；《年谱》原文没有找到可用的电子本，具体月日未逐条查证。年谱里一些近乎传奇的记载，文中已注明是传闻。</li>
+      <li><b>作品归站</b>　诗依原书“居夷诗”“赣州诗”“居越诗”等分卷，文章、书信、奏疏、公移依原书所注的干支或年月，由程序归入各站；只注了年份、而那一年他换过地方的，可能归错。《传习录》上卷记的是1512至1518年间的谈话，放在刻印它的赣州一站。</li>
+      <li><b>琴声</b>　<a href="https://commons.wikimedia.org/wiki/File:Guqin-Zuiyu_Changwan.ogg" target="_blank" rel="noopener">《醉渔唱晚》</a>（CC BY-SA 3.0）与<a href="https://commons.wikimedia.org/wiki/File:Pingsha_Luoyan.ogg" target="_blank" rel="noopener">《平沙落雁》</a>（CC BY 2.5），均由 Charlie Huang 演奏并录音，取自维基共享资源。本站把原文件转成了单声道 MP3 并调整了音量，转换后的文件沿用各自原来的许可。</li>
+      <li><b>地图</b>　为手绘示意，海岸与河道按今天的走向简化，不代表明代地理，也不是精确地图。</li>
+    </ul>
+  </footer>
+</div>
+
+<script>
+const PLACES = {
+  yuyao:{n:"余姚", lon:121.15, lat:30.05, lab:[12,7,"start"]},
+  jingshi:{n:"京师", lon:116.40, lat:39.90, lab:[0,-13,"middle"]},
+  nanchang:{n:"南昌", lon:115.86, lat:28.68, lab:[12,7,"start"]},
+  yue:{n:"绍兴", lon:120.58, lat:30.00, lab:[-10,22,"end"]},
+  changsha:{n:"长沙", lon:112.94, lat:28.23, lab:[-12,7,"end"]},
+  longchang:{n:"龙场", lon:106.60, lat:26.84, lab:[0,-13,"middle"]},
+  luling:{n:"庐陵", lon:114.99, lat:27.11, lab:[-12,7,"end"]},
+  chuzhou:{n:"滁州", lon:118.32, lat:32.30, lab:[-10,-9,"end"]},
+  nanjing:{n:"南京", lon:118.78, lat:32.06, lab:[12,9,"start"]},
+  ganzhou:{n:"赣州", lon:114.93, lat:25.83, lab:[12,3,"start"]},
+  nanning:{n:"南宁", lon:108.37, lat:22.82, lab:[0,-13,"middle"]},
+  nanan:{n:"南安", lon:114.36, lat:25.40, lab:[-10,22,"end"]}
+};
+
+/* e: [时间, 事件]；w: [题目, 年份, 原句, 说明]。月日为农历。 */
+const STOPS = [
+ {p:"yuyao", yr:"1472—1481", title:"生在余姚瑞云楼", modern:"今浙江余姚", role:"幼年",
+  body:["成化八年九月三十日（公历1472年10月31日），王守仁生于余姚。祖父王伦是位喜欢种竹的读书人，父亲王华这时还没有中举。","《明史》记了两个传说：母亲怀胎十四个月才生；祖母梦见神人从云中送子，所以起名叫“云”。他到五岁还不会说话，一位过路的僧人说“可惜道破”，祖父于是给他改名“守仁”，他随即开口。这些是传闻，但名字确实改过。"],
+  e:[["1472","九月三十日出生，初名云。"],["1476","五岁，改名守仁。祖父读过的书，他能随口背出来。"],["1481","父亲王华考中状元，授翰林院修撰。"]],
+  w:[]},
+
+ {p:"jingshi", yr:"1482—1487", title:"随父进京，十五岁出居庸关", modern:"今北京", role:"少年",
+  body:["父亲在京做官，十一岁的守仁跟着祖父北上。路过镇江金山寺，祖父与客人饮酒赋诗，他在旁边先成了一首，客人再让他以“蔽月山房”为题，他又随口吟出四句。","他在京城的塾里读书，问老师：什么是第一等事？老师说，读书登第。他说：登第恐怕不算，读书学做圣贤才是。","十五岁那年他独自出游居庸三关，在塞外看山川形势，追着胡人的孩子骑马射箭，一个多月才回来。回来后几次想上书朝廷谈平定盗贼的办法，被父亲骂作狂妄。"],
+  e:[["1482","随祖父进京，过金山寺赋诗。"],["1483","就塾师读书，有“何为第一等事”之问。"],["1484","母亲郑氏去世，他十三岁。"],["1486","出游居庸三关。梦见自己拜谒汉代伏波将军马援的庙，在梦里作了一首诗。四十多年后他到广西，真的走进了伏波庙。"]],
+  w:[["《蔽月山房》","1482","山近月远觉月小，便道此山大于月。若人有眼大如天，还见山小月更阔。","十一岁时所作，收在文集诗卷之末。"],["《梦中绝句》","1486","卷甲归来马伏波，早年兵法鬓毛皤。云埋铜柱雷轰折，六字题文尚不磨。","十五岁梦谒伏波庙所作。"]]},
+
+ {p:"nanchang", yr:"1488—1489", title:"到南昌迎亲，回程遇见娄谅", modern:"今江西南昌", role:"新婚",
+  body:["十七岁，他到南昌迎娶江西布政司参议诸养和的女儿。成婚那天他信步走进铁柱宫，见一位道士在打坐，便坐下来向他请教养生，两人对坐到天亮，忘了回去，岳父派人找了一夜。","在岳父的官署里住了一年多，署中有几箱纸，他每天练字，把纸都用完了，书法大进。","第二年带着妻子回余姚，船过广信，他去拜访了理学家娄谅。娄谅给他讲宋儒格物之学，告诉他“圣人必可学而至”。这句话他记了一辈子。"],
+  e:[["1488","七月到南昌成婚。新婚之日在铁柱宫与道士对坐忘归。"],["1489","十二月携夫人诸氏回余姚，途经广信（今江西上饶）谒见娄谅。"]],
+  w:[["娄谅语","年谱","圣人必可学而至。","娄谅的孙女后来嫁给宁王朱宸濠，就是三十年后守仁要平定的那个人。"]]},
+
+ {p:"jingshi", yr:"1490—1502", title:"格竹子，两次落第，考中进士", modern:"今北京，中间数次回余姚", role:"举人，进士，刑部主事",
+  body:["这十几年他在余姚和京城之间来回，一边应举，一边到处找学问的门路：学过辞章，谈过兵法，也认真读朱熹。","读朱熹读到“一草一木皆涵至理”，他就和一位姓钱的朋友约好去格亭前的竹子。朋友对着竹子苦想了三天，病倒了；他自己坚持到第七天，也病倒了。两人叹息说，圣贤是做不成的。","两次会试都没中。同住的人以落第为耻，他说：世人以不得第为耻，我以不得第而动心为耻。二十八岁那年终于考中进士。"],
+  e:[["1490","祖父去世，父亲回余姚守丧，督促他和弟弟、表兄们读经。"],["1492","举浙江乡试。此后在京城读朱熹的书，有格竹之事。"],["1493","会试落第。"],["1496","再次落第，回余姚，在龙泉山寺结诗社。"],["1497","住在京城，留心兵法，常用果核在席上摆阵。"],["1499","二甲第七名进士，在工部观政。奉命督造威宁伯王越的坟墓，用兵法部勒民夫。上《陈言边务疏》，提出八条意见。"],["1500","授刑部云南清吏司主事。"],["1501","奉命到江北审录囚犯，平反了不少冤案。事毕游九华山，访道士蔡蓬头和住在地藏洞里的异人。"],["1502","回京复命。夏天因病上疏请假，八月回越。"]],
+  w:[["《陈言边务疏》","1499","臣愚以为今之大患，在于为大臣者外托慎重老成之名，而内为固禄希宠之计。","他入仕后的第一道奏疏。"],["格竹之叹","《传习录》下","遂相与叹圣贤是做不得的，无他大力量去格物了。","晚年对学生回忆这件事时说的话。"],["《九华山赋》","1502","","游九华山时所作，收在文集赋骚之首。"]]},
+
+ {p:"yue", yr:"1502—1504", title:"在阳明洞里静坐，然后走了出来", modern:"今浙江绍兴", role:"告病归越",
+  body:["他回到绍兴，在会稽山的阳明洞旁盖了间屋子，练道家的导引术，自号阳明子。练了一段时间，据说能预知朋友来访。他却忽然醒悟：这是耍弄精神，不是道。","他一度想离开尘世，只是放不下祖母和父亲。想了很久，他明白过来：这份念头是从小就有的，要是连这个也断了，就是断灭种性了。","第二年他搬到杭州西湖养病。在虎跑寺见到一位闭关三年、不说话不睁眼的和尚，他大喝一声：这和尚终日口巴巴说什么，终日眼睁睁看什么！和尚惊起。他问和尚家里还有谁，和尚说有老母；问想不想，和尚说不能不想。他就讲了一番爱亲本于天性的道理，和尚哭着道谢，第二天就回家了。"],
+  e:[["1502 八月","告病回越，筑室阳明洞。"],["1503","移居杭州西湖，往来南屏、虎跑各寺，点化坐关的僧人。"],["1504 秋","病愈，应山东巡按御史之聘，赴济南主持乡试。"]],
+  w:[["自省语","年谱","此簸弄精神，非道也。","放弃导引术时所说。"]]},
+
+ {p:"jingshi", yr:"1504—1506", title:"上疏救人，挨了四十廷杖", modern:"今北京", role:"兵部主事",
+  body:["主持完山东乡试，他回京改任兵部武选司主事。这时他开始收学生，劝人先立下做圣人的志向。同僚多半觉得他标新立异，只有翰林院的湛若水和他一见如故，两人约定共同倡明圣学。","正德元年，武宗刚即位，宦官刘瑾专权。南京的言官戴铣等二十多人上疏劝谏，被逮捕进京。守仁上疏营救，请皇帝收回成命。刘瑾大怒，把他廷杖四十，打得昏死过去，关进锦衣卫监狱，随后贬为贵州龙场驿的驿丞。父亲王华也因此被调往南京，不久被勒令退休。"],
+  e:[["1504 秋","主考山东乡试，试题和程文多出自他手。九月改兵部武选清吏司主事。"],["1505","开始授徒讲学。与湛若水定交。"],["1506 十一月","上《乞宥言官去权奸以章圣德疏》。十二月廷杖四十，下诏狱。"],["1506 冬","在狱中读《易》，写了十几首诗。"]],
+  w:[["《乞宥言官去权奸以章圣德疏》","1506","臣闻君仁则臣直。","题目里的“去权奸”三字是后人编集时加的，原疏并没有直斥刘瑾。"],["《狱中诗》","1506","","十四首，有《不寐》《读易》《岁暮》等，都收在诗集里。"]]},
+
+ {p:"changsha", yr:"1507", title:"赴谪：从钱塘到沅湘", modern:"途经今杭州、武夷山、长沙", role:"贬往龙场途中",
+  body:["出狱后他南下，走到钱塘，发现刘瑾派的人一路尾随。他把衣帽留在江边，装作投水自尽，自己搭了一条商船逃走。","年谱说船遇上飓风，一夜漂到福建，他上岸夜宿野庙，又在武夷山遇见当年铁柱宫的那位道士，道士劝他不要远遁，免得连累父亲。这一段经历近乎传奇，后来学者多有怀疑，但他那首《泛海》诗是真的。","他回南京看望了父亲，然后取道江西、湖南去贵州。在长沙游了岳麓山，一路写了五十多首诗。"],
+  e:[["1507 春","离京南下。朋友湛若水、崔铣等人作诗送行。"],["1507 夏","到钱塘，托言投江，摆脱追踪。"],["1507","年谱记他漂海至闽、入武夷山。随后到南京省亲。"],["1507 冬","经广信、分宜、萍乡入湖南，过长沙，溯沅水西行。"]],
+  w:[["《泛海》","1507","险夷原不滞胸中，何异浮云过太空？夜静海涛三万里，月明飞锡下天风。",""],["《别三子序》","1507","","临行前写给徐爱等三位最早的弟子。徐爱是他的妹夫，这一年正式拜师。"]]},
+
+ {p:"longchang", yr:"1508—1509", title:"龙场：半夜里忽然想通了", modern:"今贵州修文", role:"龙场驿驿丞",
+  body:["龙场在贵州西北的万山之中，瘴疠多，语言不通，驿站连住的房子都没有。他先在山洞里住，后来自己搭草屋。跟来的仆人都病倒了，他劈柴打水煮粥喂他们，怕他们抑郁，还给他们唱家乡的小调。","到了这一步，得失荣辱都放下了，只有生死一念还没化开。他做了个石棺，日夜端坐其中，问自己：圣人处在这种境地，会怎么办？","一天半夜，他忽然大悟格物致知的道理，不觉呼跃而起，把仆人都惊醒了。他明白了：圣人之道，我的本性里本来就具足，从前向外面事物上去求理，是求错了。","当地人渐渐和他亲近，帮他伐木盖了龙冈书院、何陋轩、君子亭。贵州提学副使席书请他到贵阳讲学，他在那里第一次讲“知行合一”。"],
+  e:[["1508 春","到龙场。住东洞，名之曰“阳明小洞天”。"],["1508","龙场悟道。默记五经来验证，无不吻合，写成《五经臆说》。"],["1508","当地人为他建龙冈书院。订《教条示龙场诸生》四条：立志、勤学、改过、责善。"],["1508","思州太守派人来羞辱他，被当地人打跑。太守要他赔礼，他回信不卑不亢，太守惭服。"],["1508","水西土司安贵荣送米肉金帛，他只收了米。安贵荣想裁撤驿站、又在邻部叛乱时观望，他两次写信劝阻。应安氏之请写《象祠记》。"],["1509","有吏目带着一子一仆从京城来，三人相继死在蜈蚣坡下。他带童子去掩埋，写《瘞旅文》祭奠。"],["1509","席书聘他主讲贵阳文明书院，始论知行合一。"],["1509 冬","刘瑾势衰，升庐陵知县，离开龙场。"]],
+  w:[["悟道语","年谱","圣人之道，吾性自足，向之求理于事物者误也。",""],["《教条示龙场诸生》","1508","志不立，天下无可成之事。",""],["《象祠记》","1508","天下无不可化之人也。","象是舜的弟弟，曾想害死舜。苗人却世代祭祀他。"],["《瘞旅文》","1509","吾与尔犹彼也。","“我和你就像你和他们一样”：同是离乡的人。入选《古文观止》。"],["《何陋轩记》","1508","","取孔子“君子居之，何陋之有”之意。"]]},
+
+ {p:"luling", yr:"1510", title:"做了七个月知县", modern:"今江西吉安", role:"庐陵知县",
+  body:["离开贵州的路上，他在辰州、常德与学生相聚，教他们静坐，说这是为了补小学“收放心”的工夫，不是要坐禅入定。","三月到庐陵。这是个出名好打官司的地方。他不靠刑罚，先选出里正中的老成人，让他们劝解乡里，自己只审大案。到任头几个月连发十六道告示，讲的都是息讼、防疫、防火、不许衙役下乡扰民这些事。","城里失火，延烧上千家。他查明是街巷太窄、房屋太密，下令拓宽街道，各家退后几尺留出火巷。"],
+  e:[["1510 春","归途在辰州龙兴寺、常德与冀元亨等诸生讲学。"],["1510 三月","到任。上书请免去加派给庐陵的葛布银两，说如有罪责由他一人承担。"],["1510","瘟疫流行，他发告示劝人不要抛弃染病的亲人，自己带医生巡视。"],["1510 八月","刘瑾伏诛。"],["1510 冬","入京朝觐，住大兴隆寺。升南京刑部主事，旋即留在京师任职。"]],
+  w:[["《告谕庐陵父老子弟》","1510","","到任后的告示，一共十六道。"],["《与辰中诸生》","1509","前在寺中所云静坐事，非欲坐禅入定。",""]]},
+
+ {p:"jingshi", yr:"1510—1512", title:"在大兴隆寺讲学", modern:"今北京", role:"吏部主事，升至考功司郎中",
+  body:["吏部尚书杨一清把他留在京城。两年里他从主事升到郎中，公务之外，和湛若水、黄绾在大兴隆寺聚讲，立誓终身共学。来听的人越来越多，方献夫官位比他高，也执弟子礼。","他这时教人，主张朱熹与陆九渊的学问不必强分高下，又替被冷落了几百年的陆九渊说话。","正德七年底，他升任南京太仆寺少卿，妹夫兼大弟子徐爱也升了南京工部员外郎，两人同船回越省亲。船上他给徐爱讲《大学》宗旨，徐爱听了“踊跃痛快，如狂如醒者数日”。这些谈话后来成了《传习录》的开篇。"],
+  e:[["1510 冬","到京。黄绾来访，与湛若水三人定交。"],["1511 正月","调吏部验封清吏司主事。二月为会试同考官。十月升文选司员外郎。"],["1511","湛若水奉命出使安南，他作《别湛甘泉序》相送。"],["1512 三月","升考功清吏司郎中。"],["1512 十二月","升南京太仆寺少卿，与徐爱同舟南归，论《大学》。"]],
+  w:[["《别湛甘泉序》","1511","","回顾自己“溺于邪僻者二十年”，说遇到湛若水之后志向才坚定下来。"],["《答徐成之》","1511","修己治人，本无二道。政事虽剧，亦皆学问之地。",""]]},
+
+ {p:"yue", yr:"1513", title:"回越省亲，和徐爱游四明山", modern:"今浙江绍兴、余姚", role:"南京太仆寺少卿，赴任前归省",
+  body:["二月回到越中。他本想约几位朋友同游天台、雁荡，没能成行。五月与徐爱等人从上虞入四明山，看白水冲的瀑布，寻龙溪的源头，登杖锡山，到雪窦，上千丈岩，望见天姥、华顶。","一路上他随处指点学生。他后来写信给黄绾说，这次出游是想借山水的清旷来点化同行的人，可惜有人中途走了。","十月，他到滁州上任。"],
+  e:[["1513 二月","至越。"],["1513 五月","与徐爱等游四明山、雪窦山，从宁波回余姚。"],["1513 十月","赴滁州。"]],
+  w:[["《与黄宗贤》","1513","","信中讲四明之游的用意。"]]},
+
+ {p:"chuzhou", yr:"1513—1514", title:"滁州：几百人围着龙潭唱歌", modern:"今安徽滁州", role:"南京太仆寺少卿，督马政",
+  body:["太仆寺管养马，滁州山水好，公事少。他每天带着学生游琅琊山、瀼泉。月夜里，几百人环坐在龙潭边，歌声震动山谷。来求学的人从这时候多了起来。","他在滁州多教人静坐，为的是让初学者收住奔逸的心。后来他发现有人因此喜静厌动、流入空虚，到南京以后就改了教法。"],
+  e:[["1513 十月","到滁州。"],["1513—1514","与门人游琅琊、瀼泉，讲学不辍。"],["1514 四月","升南京鸿胪寺卿，离开滁州。学生送到乌衣，舍不得分手，他作诗劝他们回去。"]],
+  w:[["《山中示诸生》","1514","滁流亦沂水，童冠得几人？莫负咏归兴，溪山正暮春。","用《论语》“浴乎沂，风乎舞雩，咏而归”的典故。"],["《滁阳别诸友》","1514","","离滁时所作。"]]},
+
+ {p:"nanjing", yr:"1514—1516", title:"南京：只教人存天理、去人欲", modern:"今江苏南京", role:"南京鸿胪寺卿",
+  body:["鸿胪寺管朝会礼仪，在南京是个闲职。徐爱、黄宗明、薛侃、陆澄、季本等一大批学生聚在他身边，每天讲学。","看到滁州的学生有人空谈玄妙，他后悔了，在南京只教学生在具体事情上省察克治，存天理，去人欲。","他这时的说法和朱熹不同，招来不少攻击。他从朱熹晚年的书信里摘出三十多条自悔早年之说的话，编成《朱子晚年定论》，想说明自己和朱熹并不相悖。这本书后来引起的争论比它平息的还多。"],
+  e:[["1514 五月","到南京。"],["1515","武宗要派太监去西藏迎活佛，他拟了《谏迎佛疏》，写好没有上。"],["1515","立堂弟的儿子正宪为后嗣。编《朱子晚年定论》。两次上疏请求回乡看望年近百岁的祖母，不许。"],["1516 九月","兵部尚书王琼推荐，升都察院左佥都御史，巡抚南赣汀漳。十月回越省亲，十二月启程。"]],
+  w:[["《朱子晚年定论序》","1515","","书编于南京，1518年在赣州刻印。"],["《谏迎佛疏》","1515","","稿具未上。"]]},
+
+ {p:"ganzhou", yr:"1517—1519", title:"南赣：破山中贼易，破心中贼难", modern:"今江西赣州，兼辖闽西、粤北、湘南", role:"巡抚南赣汀漳，提督军务",
+  body:["江西、福建、广东、湖南四省交界的山区，几十年来盗贼盘踞，各自称王，官府调几省兵马会剿，每次都是劳而无功。","他到任先整顿自己这边。发现衙门里的老吏多是贼人的耳目，就找来最狡猾的一个，赦了他的罪，让他反过来刺探贼情。又推行十家牌法：十户共用一块牌，写明各家人口，每天轮流查对，有生面孔就报官。再从各县挑选民兵，自己训练，不再依赖远调的客兵。","一年多里他三次用兵：先平福建漳州的詹师富，再破横水、左溪、桶冈的谢志山，最后设计擒杀浰头的池仲容。《明史》说他带的都是文官和小校，平了几十年的巨寇，远近惊为神。","打仗的间隙他照旧讲学。出征横水的路上，他给学生写信说：破山中贼易，破心中贼难。"],
+  e:[["1517 正月","到赣州。行十家牌法，选练民兵。"],["1517 二月至四月","进兵福建，在上杭祷雨得雨，破象湖山，平漳南。奏设平和县。"],["1517 五月","大弟子徐爱在家乡病逝，年三十一。消息传来，他哭得吃不下饭。第二年写了祭文。"],["1517 九月","朝廷给他旗牌，准许便宜行事。改革兵制，以伍、队、哨、营、阵、军层层统属。"],["1517 十月至十二月","破横水、左溪，再破桶冈。奏设崇义县。"],["1518 正月至三月","把池仲容诱到赣州观灯，正月初三设宴擒杀，随即连破三浰和九连山。奏设和平县。"],["1518","在各县立社学，订《南赣乡约》，教百姓互相规劝。"],["1518 七月","刻古本《大学》和《朱子晚年定论》。八月，薛侃在赣州刻印《传习录》，就是今本的上卷。"],["1518 九月","修濂溪书院，安置四方来学的人。"],["1519 六月","奉命去福建处置叛军，从赣州出发。"]],
+  w:[["《与杨仕德薛尚谦》","1517","破山中贼易，破心中贼难。",""],["《传习录》上","1518 刻","知是行的主意，行是知的功夫；知是行之始，行是知之成。","徐爱、陆澄、薛侃所录，记的是1512年到1518年间的谈话。"],["《训蒙大意示教读刘伯颂等》","1518","大抵童子之情，乐嬉游而惮拘检。","他的儿童教育主张：要顺着孩子的性情，多歌诗、习礼，不要一味责罚。"],["《南赣乡约》","1518","",""],["《祭徐曰仁文》","1518","",""]]},
+
+ {p:"nanchang", yr:"1519—1521", title:"三十五天平定宁王，然后学会了在诽谤里站稳", modern:"今江西南昌，兼及吉安、赣州", role:"巡抚江西",
+  body:["六月十五日，他的船走到丰城，知县来报：宁王朱宸濠在南昌反了。宁王蓄谋多年，裹挟了六万人，沿江东下就能直取南京。他手里没有一兵一卒，立刻掉头去吉安，和知府伍文定征调各府兵马。","为了拖住宁王，他到处散布假文书，说朝廷大军已分路合围，又伪造宁王谋士的投降信故意让人截获。宁王果然疑心，在南昌等了十几天才出兵。","七月，宁王主力围攻安庆。有人主张去救，他说不如直捣南昌：敌人精锐尽出，老巢空虚，一攻就破；宁王必然回救，再在鄱阳湖上迎击。二十日克南昌，二十四日到二十六日三战于黄家渡、八字脑、樵舍，用火攻烧了宁王的船阵，生擒宁王。《明史》记：凡三十五日而贼平。","更难的在后头。武宗要亲征，身边的宠臣想把宁王放回湖里让皇帝亲手再捉一次，又诬陷他与宁王通谋。他把俘虏连夜送到杭州交给太监张永，自己称病躲进西湖净慈寺。带兵进驻南昌的张忠、许泰百般挑衅，他始终不动，只是善待北来的士兵，直到他们自己想家，班师北还。","就在这一两年里，他把自己的学问归结成三个字：致良知。他说，这是从百死千难中得来的。"],
+  e:[["1519 六月十五日","至丰城闻变，返吉安。十九日上《飞报宁王谋反疏》。"],["1519 七月","十三日从吉安出兵，十八日各路会于樟树，二十日攻克南昌，二十六日在樵舍擒宸濠。"],["1519 八月至九月","武宗南征。他押着俘虏离开南昌，到钱塘交给张永。"],["1519 冬","回南昌任江西巡抚。张忠、许泰的北军驻在城里，逼他比试射箭，他三发三中。冬至那天他让全城百姓巷祭上坟，哭声震野，北军闻之思归。"],["1520 正月","被召到芜湖，又被拦住不得见皇帝，上九华山，每天在草庵里静坐。武宗派人察看后说：王守仁是学道的人，哪里会反。"],["1520","学生冀元亨因曾奉他之命去见过宁王，被诬下狱，受尽酷刑不肯诬服，后来死在出狱五天之后。"],["1520 六月","到赣州大阅士卒。游通天岩。九月回南昌，泰州人王艮穿着古礼服来访，辩论两天，拜他为师。"],["1520","与罗钦顺往复通信，辩论《大学》古本和格物。"],["1521","始揭“致良知”之教。五月集门人于白鹿洞。"],["1521 六月","世宗即位，召他进京。行至钱塘，被阁臣阻拦，改任南京兵部尚书。他请求回乡省亲，八月至越。"]],
+  w:[["《飞报宁王谋反疏》","1519","",""],["《擒获宸濠捷音疏》","1519","",""],["《答罗整庵少宰书》","1520","夫学贵得之心。求之于心而非也，虽其言之出于孔子，不敢以为是也。","收在《传习录》中卷。"],["致良知","年谱","某于此良知之说，从百死千难中得来，不得已与人一口说尽。只恐学者得之容易，把作一种光景玩弄，不实落用功，负此知耳。",""],["《啾啾吟》","1520","知者不惑仁不忧，君胡戚戚眉双愁？","在诽谤最盛的时候写的。"]]},
+
+ {p:"yue", yr:"1521—1527", title:"越中六年：讲学最盛的时候", modern:"今浙江绍兴、余姚", role:"新建伯，居丧，其后闲居",
+  body:["回到家乡，朝廷论平宁王之功，封他为新建伯。但铁券和岁禄都没有给，跟他一起立功的人大多被暗中贬黜。他几次上疏辞爵，请求先赏部下，没有回音。封爵的使者到的那天，正是父亲王华的生日，不久父亲去世，他在家守丧。","丧期满了，朝廷也不召他。此后六年他一直住在越中。各地来求学的人挤满了寺庙和民房，一间屋里常常睡几十人，夜里轮流躺下。他讲学时环坐而听的有三百多人。","嘉靖三年中秋，他在天泉桥上摆酒，一百多个学生在座，饮酒唱歌，投壶击鼓，划船泛月。他作诗说“铿然舍瑟春风里，点也虽狂得我情”。","嘉靖六年，广西思恩、田州的土司叛乱，朝廷想起了他，命他以原官兼左都御史去总督两广。出发前一夜，两个大弟子钱德洪和王畿为“四句教”该怎么理解争了起来，在天泉桥上请他裁断。"],
+  e:[["1521 八月","至越。九月回余姚祭扫祖坟，钱德洪率七十多人拜师。十二月封新建伯。"],["1522 二月","父亲王华去世，年七十七。"],["1523","会试策问暗中攻击他的学说，弟子徐珊不答而出，钱德洪落第回来愤愤不平，他却高兴地说：圣学从此大明了，这下连穷乡僻壤都知道我的学说了。"],["1524","绍兴知府南大吉拜他为师，开稽山书院，续刻《传习录》，即今本中卷。八月中秋宴门人于天泉桥。"],["1525 正月","夫人诸氏去世。这一年作《稽山书院尊经阁记》《亲民堂记》，写《答顾东桥书》。十月门人建阳明书院于越城。"],["1526","继室张氏生子正亿。答聂豹、欧阳德、邹守益诸人书。"],["1527 五月","命总督两广、江西、湖广军务，征思恩、田州。六月上疏辞免，不许。"],["1527 九月初八","出发前夜，天泉证道。次日启程，钱德洪、王畿追送到严滩。"]],
+  w:[["《答顾东桥书》","1525","知之真切笃实处即是行，行之明觉精察处即是知。","收在《传习录》中卷，末段即著名的“拔本塞源论”。"],["《稽山书院尊经阁记》","1525","经，常道也。……六经者非他，吾心之常道也。",""],["《咏良知四首示诸生》","1524 前后","个个人心有仲尼，自将闻见苦遮迷。而今指与真头面，只是良知更莫疑。","另一首有“抛却自家无尽藏，沿门持钵效贫儿”。"],["《月夜二首》","1524","铿然舍瑟春风里，点也虽狂得我情。","天泉桥中秋之宴。"],["四句教","1527","无善无恶心之体，有善有恶意之动，知善知恶是良知，为善去恶是格物。","王畿认为这只是权宜的说法，钱德洪认为是定论。他说两人的见解正好相互补足，谁也不要执着一边。"],["《大学问》","1527","大人者，以天地万物为一体者也。","启程前口授给钱德洪的，是他对自己学说最完整的一次陈述。"]]},
+
+ {p:"nanning", yr:"1527—1528", title:"两广：不杀一人平了思田", modern:"今广西南宁，兼及梧州、田阳、桂平", role:"总督两广兼巡抚",
+  body:["他带病上路，沿途到处有学生迎送。过南昌，百姓顶着香夹道跪迎，街上挤得走不动；在吉安，他站在螺川驿里对三百多个旧日的学生讲了最后一课。","思恩、田州的首领卢苏、王受本来就想投降，前任总督一味进剿，把他们逼反了。他一路上疏说明：这里靠近交趾，全是瑶、壮各族，硬要撤掉土司改派流官，边患只会由朝廷自己承担。到了南宁，他把几万军队全部遣散。卢苏、王受带着部众来降，他数落了两人的罪过，各打一百杖，然后亲自走进他们的营地安抚七万人。没有动刀兵。","接着他利用这支降兵和准备撤回的湖广土兵，出其不意袭破了断藤峡和八寨。这两处瑶人据险几十年，明初以来没人敢轻言进剿。","他在南宁办了敷文书院，自己去讲学。但他的肺病和痢疾已经很重，上疏请求回乡，没等到批复就动身了。"],
+  e:[["1527 十月","过南昌、吉安，与诸生讲学。十一月二十日到梧州。"],["1527 十二月","上疏陈述用兵之非，主张招抚。"],["1528 二月","卢苏、王受降，思田平。上《奏报田州思恩平复疏》。"],["1528 四月","在思恩、田州、南宁兴办学校。"],["1528 七月","破断藤峡、八寨。朝中桂萼等人说他受命征思田、没有受命征八寨，赏格不行。"],["1528 九月","病重。十月上《乞恩暂容回籍就医养病疏》，推荐林富自代。"],["1528 十月","路过横州乌蛮滩，拜谒伏波将军庙，和十五岁梦里见到的一模一样。到广州，往增城祭祀六世祖王纲的祠庙，在湛若水的旧居题诗。"]],
+  w:[["《谒伏波庙二首》","1528","四十年前梦里诗，此行天定岂人为。",""],["《奏报田州思恩平复疏》","1528","",""],["《答聂文蔚》（二）","1528","","病中所写，是他最后一封论学长信。"],["《寄正宪男手墨》","1527—1528","吾平生讲学，只是致良知三字。","沿途写给嗣子正宪的家信。"],["《书泉翁壁》","1528","","在增城湛若水故居所题。"]]},
+
+ {p:"nanan", yr:"1528—1529", title:"此心光明，亦复何言", modern:"今江西大余", role:"归途",
+  body:["十一月，他翻过梅岭到了南安。门人、南安府推官周积来见，他坐起来，咳喘不止，问：近来学问如何？","二十八日晚上船泊在青龙铺。第二天他把周积叫进来，过了很久才睁开眼说：我去了。周积流着泪问有什么遗言，他微微一笑：“此心光明，亦复何言。”过了一会儿闭上眼睛。这一天是嘉靖七年十一月二十九日，公历1529年1月9日，他五十七岁。","灵柩经过赣州、南昌，军民穿着孝服沿路哭送。第二年十一月葬在绍兴兰亭附近的洪溪，这块地是他生前自己选的，来会葬的门人有一千多。","朝廷里，桂萼弹劾他擅离职守，又说他的学说是邪说。世宗下诏停了他的爵位世袭，抚恤的典礼一概不行。近四十年后，隆庆皇帝才追赠他为新建侯，谥文成。万历十二年，他从祀孔庙。"],
+  e:[["1528 十一月二十五日","越梅岭，至南安府。"],["1528 十一月二十九日","卒于南安青龙铺舟中。"],["1529 二月","丧至越。十一月葬洪溪。"],["1529","朝廷下诏停世袭，禁其学说。"],["1567","隆庆元年，追赠新建侯，谥文成。"],["1584","万历十二年，从祀孔庙。《明史》说，终明之世，文臣用兵制胜，没有比得上他的。"]],
+  w:[["遗言","年谱","此心光明，亦复何言。",""]]}
+];
+
+/* 人物：q 是在作品里常见的称呼；m 是 [站序号(从0起), 交集] */
+const PEOPLE=[
+ {n:"王华",r:"父亲，成化十七年状元",q:"先君",i:"官至南京吏部尚书。《明史》说他有器度，在经筵讲读最久；又极孝，母亲活过百岁，他七十多了还睡草席守丧。",
+  m:[[0,"守仁十岁时，他考中状元。"],[1,"把儿子带到京城读书。儿子想上书谈兵，被他斥为狂妄。"],[3,"丁忧回余姚，督促子弟读经。"],[5,"儿子触怒刘瑾，他被调往南京，随后被勒令退休。"],[6,"守仁赴谪前到南京看他。"],[15,"封爵的使者到家那天是他的生日。次年去世，年七十七。"]]},
+ {n:"诸氏",r:"夫人，南昌诸养和之女",q:"诸",i:"十七岁嫁给守仁，陪了他三十七年，没有生育。",
+  m:[[2,"在南昌成婚。新婚之夜丈夫在铁柱宫与道士对坐到天亮。"],[15,"嘉靖四年正月在越去世。"]]},
+ {n:"徐爱",r:"妹夫，第一个弟子，字曰仁",q:"曰仁",i:"守仁说他是“吾之颜渊”。《传习录》开头十几条是他记的，也是他最先想到要把老师的话记下来。",
+  m:[[6,"守仁赴谪前，他正式拜师。"],[9,"同舟南归，听讲《大学》，“如狂如醒者数日”。"],[10,"同游四明山、雪窦。"],[12,"在南京任职，随侍讲学。"],[13,"1517年病逝，年三十一。守仁在赣州哭祭。"]]},
+ {n:"湛若水",r:"朋友，号甘泉",q:"甘泉",i:"陈献章的传人，讲“随处体认天理”。两人学问有分歧，交情始终不变。守仁去世后，墓志铭是他写的。",
+  m:[[5,"在京定交，相约共倡圣学。"],[6,"守仁赴谪，他作诗九首相送。"],[9,"在大兴隆寺同讲。他出使安南，守仁作序送别。"],[16,"守仁到增城，在他的旧居题诗。"]]},
+ {n:"黄绾",r:"朋友，后称弟子，字宗贤",q:"宗贤",i:"先以朋友相交，后来自称门人。守仁身后被攻击，他上疏辩护，又把女儿嫁给守仁的遗孤正亿，带到身边抚养。",
+  m:[[9,"在京相识，与湛若水三人订终身共学之盟。"],[10,"守仁写信给他讲四明之游。"],[15,"到越中问学，执弟子礼。"],[16,"上疏为守仁讼功，请朝廷补给铁券岁禄。"]]},
+ {n:"钱德洪",r:"弟子，号绪山",q:"德洪",i:"余姚人。守仁晚年，新来的学生先由他和王畿辅导。老师去世后，他花了几十年编文集、修年谱。",
+  m:[[15,"率七十多人拜师。天泉证道时主张四句教是定论。"],[17,"与王畿赶去迎丧，主持葬事。"]]},
+ {n:"王畿",r:"弟子，号龙溪",q:"汝中",i:"绍兴人，悟性极高。他认为心、意、知、物都是无善无恶的，守仁说这是接引上等根器的说法。",
+  m:[[15,"在越拜师。天泉证道时提出“四无”之说。"],[17,"与钱德洪迎丧。"]]},
+ {n:"王艮",r:"弟子，号心斋",q:"王艮",i:"泰州的盐丁出身，自学成家。他原名银，守仁给他改名艮。后来开创泰州学派，把学问讲到了樵夫陶匠中间。",
+  m:[[14,"穿着古礼服到南昌，辩论两天后拜师。"],[15,"随到越中。曾自制蒲轮车招摇北上讲学，被守仁痛责。"]]},
+ {n:"邹守益",r:"弟子，号东廓",q:"谦之",i:"江西安福人，探花出身。文集里守仁写给他的论学书信有七八封。",
+  m:[[13,"到赣州问学，拜师。"],[14,"宁王反，他赶到吉安参赞军务。"],[15,"贬官广德时建复初书院，来越中问学。"]]},
+ {n:"薛侃",r:"弟子，字尚谦",q:"尚谦",i:"广东揭阳人。今本《传习录》上卷是他刻的。",
+  m:[[12,"在南京拜师。"],[13,"随到赣州，刻《传习录》。"]]},
+ {n:"聂豹",r:"弟子，字文蔚",q:"文蔚",i:"只见过守仁一面，通过两封信。守仁死后四年，他设位北面再拜，自称门生。",
+  m:[[15,"以御史巡按福建，渡钱塘来见。别后通信。"],[16,"守仁在广西病中给他写了最后一封长信。"]]},
+ {n:"席书",r:"朋友，号元山",q:"元山",i:"贵州提学副使。守仁还是个驿丞时，他几次到龙场请教，带着贵阳的学生行拜师礼。",
+  m:[[7,"聘守仁到贵阳文明书院讲学。"],[15,"在朝中举荐，说“生在臣前者见一人，曰杨一清；生在臣后者见一人，曰王守仁”。"]]},
+ {n:"冀元亨",r:"弟子，字惟乾",q:"惟乾",i:"湖南武陵人。《明史》在守仁传后专门为他附了一篇小传。",
+  m:[[8,"在辰州、常德从学。"],[13,"到赣州，守仁请他教儿子。"],[14,"曾奉命去见宁王，给宁王讲《西铭》里的君臣大义。事后被诬通谋，下狱受炮烙，不肯诬服，出狱五天后去世。"]]},
+ {n:"刘瑾",r:"武宗初年专权的宦官",q:"瑾",i:"",
+  m:[[5,"将守仁廷杖四十，下狱，贬龙场。"],[6,"派人一路追踪。"],[8,"伏诛。"]]},
+ {n:"朱宸濠",r:"宁王，封地南昌",q:"宸濠",i:"太祖第十七子宁王朱权的后代。他的王妃娄氏是娄谅的孙女，屡次劝他不要造反，兵败时投水而死。",
+  m:[[14,"六月十四日在南昌起兵，四十二天后在樵舍被擒。"]]},
+ {n:"王琼",r:"兵部尚书",q:"晋溪",i:"守仁一生的两次大功，都出自他的举荐和授权。宁王反讯传到京城，大臣震恐，他说：王伯安在南昌上游，必能擒贼。",
+  m:[[12,"推荐守仁巡抚南赣。"],[13,"奏请给予旗牌，准其便宜行事。"],[14,"守仁把平宁王的功劳归于他，因此得罪了首辅杨廷和。"]]},
+ {n:"张永",r:"太监",q:"张永",i:"曾与杨一清合谋除掉刘瑾。",
+  m:[[14,"在钱塘接下守仁送来的宁王，此后在武宗面前屡次替他辩白。"]]},
+ {n:"娄谅",r:"理学家，号一斋",q:"娄",i:"吴与弼的弟子，住在广信。",
+  m:[[2,"十八岁的守仁来访，他说“圣人必可学而至”。"]]}
+];
+
+/* ---------- 底图 ---------- */
+const K=40,KX=K*0.866;
+const X=lon=>(lon-101)*KX, Y=lat=>(41-lat)*K;
+const NS="http://www.w3.org/2000/svg";
+const el=(t,a={},txt)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;return e;};
+const poly=pts=>pts.map((p,i)=>(i?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).join(" ");
+
+const COAST=[[122.2,41.2],[121.6,40.8],[121.0,40.8],[119.6,39.9],[118.0,39.2],[117.7,38.6],[118.3,38.0],[119.0,37.75],[119.0,37.2],[119.6,37.1],[120.2,37.6],[120.75,37.83],[121.4,37.55],[122.5,37.4],[122.5,36.95],[121.4,36.7],[120.7,36.4],[120.3,36.05],[119.6,35.4],[119.2,34.75],[120.3,34.0],[120.9,33.0],[121.6,32.1],[121.9,31.7],[121.9,30.9],[121.2,30.65],[120.6,30.35],[121.3,30.25],[122.0,29.9],[121.9,29.2],[121.6,28.3],[120.9,27.9],[120.2,27.0],[119.6,26.0],[119.0,25.2],[118.2,24.5],[117.3,23.7],[116.7,23.3],[115.4,22.7],[114.2,22.35],[113.6,22.7],[113.2,22.0],[111.8,21.7],[110.6,21.2],[110.5,20.4],[110.1,20.25],[109.75,20.9],[109.7,21.5],[109.1,21.5],[108.3,21.65],[107.9,21.5],[107.0,20.9],[106.5,20.0],[105.7,19.0],[106.5,17.3]];
+const LAND=[[100,41.2],...COAST,[100,17.3]];
+const HAINAN=[[109.2,19.85],[109.6,20.0],[110.1,20.08],[110.7,20.05],[111.0,19.65],[110.55,18.8],[110.0,18.4],[109.5,18.2],[108.7,18.5],[108.63,19.2]];
+const TAIWAN=[[121.5,25.3],[122.0,25.0],[121.6,24.0],[121.3,23.0],[120.85,21.95],[120.2,22.9],[120.15,23.8],[120.9,24.9]];
+const HUANGHE=[[100,35.4],[102.0,35.9],[103.8,36.05],[104.6,37.4],[106.3,38.5],[107.0,40.3],[107.6,40.8],[110.0,40.6],[111.2,40.2],[111.0,39.2],[110.6,38.0],[110.5,36.9],[110.45,36.15],[110.3,34.6],[111.2,34.8],[112.5,34.85],[113.7,34.95],[114.4,34.95],[115.3,35.5],[116.1,35.9],[117.0,36.7],[118.0,37.3],[119.0,37.75]];
+const CHANGJIANG=[[100,26.6],[101.8,26.6],[102.9,26.9],[103.6,27.9],[104.6,28.77],[105.4,28.9],[106.55,29.56],[107.4,29.7],[108.4,30.8],[109.5,31.02],[110.6,30.95],[111.3,30.7],[112.2,30.3],[112.9,29.8],[113.1,29.45],[113.9,29.95],[114.3,30.57],[114.9,30.38],[115.5,29.85],[116.0,29.75],[116.6,30.0],[117.05,30.5],[117.8,30.95],[118.37,31.33],[118.75,32.08],[119.45,32.2],[120.3,31.95],[121.0,31.75],[121.9,31.6]];
+const MINJIANG=[[103.6,31.6],[103.6,31.0],[103.85,30.05],[103.77,29.57],[104.6,28.77]];
+
+const svg=document.getElementById("map");
+svg.append(el("path",{class:"land",d:poly(LAND)+" Z"}));
+svg.append(el("path",{class:"land",d:poly(HAINAN)+" Z"}));
+svg.append(el("path",{class:"land",d:poly(TAIWAN)+" Z"}));
+svg.append(el("path",{class:"river",d:poly(HUANGHE)}));
+svg.append(el("path",{class:"river",d:poly(CHANGJIANG)}));
+svg.append(el("path",{class:"river minor",d:poly(MINJIANG)}));
+svg.append(el("text",{class:"rlabel",x:X(108.3),y:Y(39.6)},"黄河"));
+svg.append(el("text",{class:"rlabel",x:X(109.4),y:Y(31.75)},"长江"));
+svg.append(el("text",{class:"rlabel",x:X(119.0),y:Y(19.6)},"南海"));
+svg.append(el("text",{class:"rlabel",x:X(121.6),y:Y(34.6)},"黄海"));
+/* 比例尺：纬度 1° ≈ 111 公里 */
+const sc=el("g",{class:"scale",transform:`translate(${X(101.6)},${Y(18.6)})`});
+const L500=500/111*K;
+sc.append(el("line",{x1:0,y1:0,x2:L500,y2:0}),el("line",{x1:0,y1:-4,x2:0,y2:4}),el("line",{x1:L500,y1:-4,x2:L500,y2:4}),el("text",{x:L500/2,y:-8,"text-anchor":"middle"},"500 公里"));
+svg.append(sc);
+
+/* ---------- 路线 ---------- */
+const gBase=el("g"),gRoute=el("g"),gPts=el("g");
+svg.append(gBase,gRoute,gPts);
+const segs=[];
+for(let i=1;i<STOPS.length;i++){
+  const a=PLACES[STOPS[i-1].p], b=PLACES[STOPS[i].p];
+  const x1=X(a.lon),y1=Y(a.lat),x2=X(b.lon),y2=Y(b.lat);
+  const dx=x2-x1,dy=y2-y1,mx=(x1+x2)/2-dy*0.13,my=(y1+y2)/2+dx*0.13;
+  const d=`M${x1.toFixed(1)} ${y1.toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  gBase.append(el("path",{class:"route-base",d}));
+  const p=el("path",{class:"route",d,pathLength:1});
+  gRoute.append(p);segs.push(p);
+}
+const visitsOf=key=>STOPS.map((s,i)=>s.p===key?i:-1).filter(i=>i>=0);
+const ptEls={};
+for(const key in PLACES){
+  const p=PLACES[key],g=el("g",{class:"pt",tabindex:0,role:"button","aria-label":p.n,transform:`translate(${X(p.lon).toFixed(1)},${Y(p.lat).toFixed(1)})`});
+  g.append(el("circle",{class:"ring",r:7}),el("circle",{class:"dot",r:6}),el("circle",{class:"hit",r:16}),el("text",{x:p.lab[0],y:p.lab[1],"text-anchor":p.lab[2]},p.n));
+  /* 多次到访的地方：再点一次跳到下一次到访 */
+  const pick=()=>{const v=visitsOf(key);go(v.find(i=>i>cur)??v[0]);};
+  g.addEventListener("click",pick);
+  g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();pick();}});
+  gPts.append(g);ptEls[key]=g;
+}
+
+/* ---------- 年表与正文 ---------- */
+const strip=document.getElementById("strip"),detail=document.getElementById("detail");
+const tabs=STOPS.map((s,i)=>{
+  const b=document.createElement("button");
+  b.type="button";b.id="stop-"+(i+1);
+  b.innerHTML=`<span class="yr">${s.yr}</span><span class="pl">${PLACES[s.p].n}</span>`;
+  b.addEventListener("click",()=>go(i));
+  strip.append(b);return b;
+});
+const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const ORD=["一","二","三","四","五","六","七","八","九"];
+let cur=0;
+function go(i){
+  cur=Math.max(0,Math.min(STOPS.length-1,i));
+  const s=STOPS[cur],pl=PLACES[s.p],v=visitsOf(s.p);
+  tabs.forEach((b,j)=>{b.setAttribute("aria-current",j===cur?"true":"false");b.classList.toggle("past",j<cur);});
+  const t=tabs[cur];
+  strip.scrollTo({left:t.offsetLeft-strip.offsetLeft-strip.clientWidth/2+t.offsetWidth/2,behavior:"smooth"});
+  segs.forEach((p,j)=>{p.classList.toggle("on",j<cur);p.classList.toggle("now",j===cur-1);});
+  if(cur>0)gRoute.append(segs[cur-1]);
+  const seen=new Set(STOPS.slice(0,cur+1).map(x=>x.p));
+  for(const k in ptEls){ptEls[k].classList.toggle("seen",seen.has(k));ptEls[k].classList.toggle("now",k===s.p);}
+  gPts.append(ptEls[s.p]);
+  const visits=v.length>1?`<div class="visits"><span>一生${ORD[v.length-1]}次到${pl.n}：</span>${v.map(j=>`<button type="button" data-go="${j}" aria-current="${j===cur}">${STOPS[j].yr}</button>`).join("")}</div>`:"";
+  detail.innerHTML=`
+    <div class="nav">
+      <span class="count">第 ${cur+1} 站 / 共 ${STOPS.length} 站</span>
+      <span class="btns"><button type="button" data-go="${cur-1}" ${cur===0?"disabled":""}>上一站</button><button type="button" data-go="${cur+1}" ${cur===STOPS.length-1?"disabled":""}>下一站</button></span>
+    </div>
+    <div class="head">
+      <div class="seal" aria-hidden="true">${pl.n}</div>
+      <div>
+        <h2>${esc(s.title)}</h2>
+        <p class="meta">${s.yr} · ${esc(s.modern)}<br>${esc(s.role)}</p>
+      </div>
+    </div>
+    ${visits}
+    <div class="body">${s.body.map(p=>`<p>${esc(p)}</p>`).join("")}</div>
+    <h3>这里发生的事</h3>
+    <ul class="events">${s.e.map(x=>`<li><span class="when">${esc(x[0])}</span><span>${esc(x[1])}</span></li>`).join("")}</ul>
+    ${s.w.length?`<h3>在这里写下的</h3>
+    <ul class="works">${s.w.map(w=>`<li><span class="wt">${esc(w[0])}</span><span class="wy">${esc(w[1])}</span><blockquote>${esc(w[2])}</blockquote>${w[3]?`<p class="wn">${esc(w[3])}</p>`:""}</li>`).join("")}</ul>`:""}
+    <section class="full" id="full"></section>
+    <p class="hint">键盘左右方向键也可以切换。</p>`;
+  view="stop";markPeople(-1);renderFull();
+}
+
+/* ---------- 全集：works.json 按站存放诗词全文 ---------- */
+let WORKS=null,PROSE=null,view="stop",INDEX=[];
+/* 诗词条目是 [题, 文]；散文条目是 [题, 文, 是否带标点] */
+const wkHTML=(w,k)=>`<details class="wk" data-k="${k}"><summary><span>${esc(w[0])}${w[2]===0?`<i class="raw">无标点</i>`:""}</span></summary><div class="tx${w.length>2?" pr":""}">${esc(w[1])}</div></details>`;
+const listHTML=(arr,pre)=>`<div class="wl">${arr.map((w,j)=>wkHTML(w,pre+j)).join("")}</div>`;
+function renderFull(){
+  const box=document.getElementById("full");if(!box)return;
+  if(WORKS===null){box.innerHTML=`<h3>这一站的全部诗词</h3><p>正在载入全集…</p>`;return;}
+  if(WORKS===false){box.innerHTML=`<h3>这一站的全部诗词</h3><p>全集数据没有载入成功，刷新页面再试一次。</p>`;return;}
+  const w=WORKS.s[cur],pw=PROSE?PROSE.s[cur]:[];
+  if(!w.p.length&&!w.c.length&&!pw.length){box.innerHTML=`<h3>这一站的全部作品</h3><p>${PROSE?"全集里没有能确定写于这一站的作品。":"诗词里没有能确定写于这一站的，文章还在载入…"}</p>`;return;}
+  const raw=pw.filter(x=>x[2]===0).length;
+  const cnt=[w.p.length&&`诗 ${w.p.length} 首`,w.c.length&&`词 ${w.c.length} 首`,pw.length&&`文 ${pw.length} 篇`].filter(Boolean).join("、");
+  box.innerHTML=`<h3>这一站的全部作品</h3>
+    <p>${cnt}${PROSE?"":"，文章还在载入"}，点题目读全文。诗依原书按地分卷的次序归入本站；文章、书信、奏疏、公移依原书所注的年月。${raw?`文章里有 ${raw} 篇原书没有标点。`:""}</p>
+    <input type="search" id="flt" placeholder="在本站篇目里找" aria-label="在本站篇目里找">
+    ${pw.length?`<h4>文</h4>${listHTML(pw,"w")}`:""}
+    ${w.c.length?`<h4>词</h4>${listHTML(w.c,"c")}`:""}
+    ${w.p.length?`<h4>诗</h4>${listHTML(w.p,"p")}`:""}`;
+  document.getElementById("flt").addEventListener("input",e=>filterList(box,e.target.value.trim()));
+}
+function filterList(box,q){
+  box.querySelectorAll(".wk").forEach(d=>{d.hidden=!!q&&!d.textContent.includes(q);});
+}
+function showBio(){
+  view="bio";markPeople(-1);
+  tabs.forEach(b=>b.setAttribute("aria-current","false"));
+  for(const k in ptEls)ptEls[k].classList.remove("now");
+  detail.innerHTML=`
+    <div class="head"><div class="seal" aria-hidden="true">传记</div><div>
+      <h2>《明史》本传</h2><p class="meta">《明史》卷一百九十五 · 王守仁传</p></div></div>
+    <div class="body"><p>清代官修的正史传记，重点写他的三次用兵，学问只在篇末带过；后面附了弟子冀元亨的小传。页面上各站的大事，我对照这篇核过有无与先后。</p></div>
+    <section class="full"><div class="wl">${PROSE.bio.map((w,j)=>wkHTML(w,"b"+j)).join("")}</div></section>`;
+}
+function showBucket(){
+  view="bucket";markPeople(-1);
+  tabs.forEach(b=>b.setAttribute("aria-current","false"));
+  for(const k in ptEls)ptEls[k].classList.remove("now");
+  const u=WORKS.u;
+  detail.innerHTML=`
+    <div class="head"><div class="seal" aria-hidden="true">待考</div><div>
+      <h2>没能归到某一站的作品</h2>
+      <p class="meta">诗 ${u.p.length} 首${PROSE?` · 文 ${PROSE.u.reduce((n,g)=>n+g.w.length,0)} 篇`:""}</p></div></div>
+    <div class="body"><p>这里是原书没有注明年月、也看不出写在哪里的篇目。诗主要是续编里补收的少作和题画诗；文章按原书的分类排列。</p></div>
+    <section class="full" id="full">
+      <input type="search" id="flt" placeholder="在这些篇目里找" aria-label="在这些篇目里找">
+      <h4>诗</h4>${listHTML(u.p,"p")}
+      ${PROSE?`<h4>文</h4>${PROSE.u.map((g,gi)=>`<details class="grp" data-g="${gi}"><summary>${esc(g.g)}（${g.w.length}）</summary><div class="wl"></div></details>`).join("")}`:""}
+    </section>`;
+  const box=document.getElementById("full");
+  box.querySelectorAll(".grp").forEach(d=>d.addEventListener("toggle",()=>fillGroup(d)));
+  document.getElementById("flt").addEventListener("input",e=>filterList(box,e.target.value.trim()));
+}
+/* 待考里的文章很多，展开某一类时才生成列表 */
+function fillGroup(d){
+  const wl=d.querySelector(".wl");
+  if(!d.open||wl.childElementCount)return;
+  const gi=+d.dataset.g;
+  wl.innerHTML=PROSE.u[gi].w.map((w,j)=>wkHTML(w,`g${gi}_${j}`)).join("");
+}
+function openWork(si,k){
+  if(si<0)showBucket();else go(si);
+  const gm=/^g(\d+)_/.exec(k);
+  if(gm){const g=detail.querySelector(`.grp[data-g="${gm[1]}"]`);if(g){g.open=true;fillGroup(g);}}
+  const d=detail.querySelector(`.wk[data-k="${k}"]`);
+  if(!d)return;
+  d.open=true;d.classList.add("hit");
+  d.scrollIntoView({block:"center",behavior:"smooth"});
+}
+const qres=document.getElementById("qres");
+document.getElementById("q").addEventListener("input",e=>{
+  const q=e.target.value.trim();
+  if(!q||!WORKS){qres.hidden=true;return;}
+  const hits=INDEX.filter(x=>x.w[0].includes(q)||x.w[1].includes(q));
+  qres.hidden=false;
+  qres.innerHTML=`<p>${hits.length?`找到 ${hits.length} 篇${hits.length>80?"，先列出前 80 篇":""}`:"没有找到。全集文字由繁体转换而来，个别字可能和通行本不同，换个词试试。"}</p>`+
+    hits.slice(0,80).map(x=>`<button type="button" data-si="${x.si}" data-k="${x.k}"><span class="rt">${esc(x.w[0])}</span><span class="rs">${x.si<0?"待考":PLACES[STOPS[x.si].p].n+" "+STOPS[x.si].yr}</span></button>`).join("");
+});
+qres.addEventListener("click",e=>{const b=e.target.closest("button[data-k]");if(b)openWork(+b.dataset.si,b.dataset.k);});
+document.getElementById("bucketBtn").addEventListener("click",showBucket);
+document.getElementById("bioBtn").addEventListener("click",showBio);
+
+/* ---------- 人物线 ---------- */
+/* 文章题目里对这些人的称呼 */
+const ALIAS={"徐爱":["曰仁"],"湛若水":["甘泉","泉翁"],"黄绾":["黄宗贤","宗贤"],"钱德洪":["德洪"],"王畿":["王汝中","汝中"],"邹守益":["邹谦之","谦之"],"薛侃":["薛尚谦","尚谦"],"聂豹":["聂文蔚"],"席书":["席元山"],"王琼":["王晋溪"],"冀元亨":["冀惟乾","惟乾"],"王华":["先君"]};
+const pbox=document.getElementById("people");
+PEOPLE.forEach((P,pi)=>{
+  const b=document.createElement("button");b.type="button";b.textContent=P.n;b.setAttribute("aria-pressed","false");
+  b.addEventListener("click",()=>showPerson(pi));pbox.append(b);
+});
+function markPeople(pi){[...pbox.querySelectorAll("button")].forEach((b,j)=>b.setAttribute("aria-pressed",j===pi?"true":"false"));}
+function showPerson(pi){
+  view="person";markPeople(pi);
+  const P=PEOPLE[pi];
+  tabs.forEach((b,j)=>{b.setAttribute("aria-current","false");b.classList.toggle("past",!P.m.some(x=>x[0]===j));});
+  segs.forEach(p=>p.classList.remove("on","now"));
+  const here=new Set(P.m.map(x=>STOPS[x[0]].p));
+  for(const k in ptEls){ptEls[k].classList.toggle("seen",here.has(k));ptEls[k].classList.remove("now");}
+  const al=ALIAS[P.n]||[];
+  const letters=al.length?INDEX.filter(x=>x.w.length>2&&/^(与|答|谢|上|寄|祭|送|贺|回|书)/.test(x.w[0])&&al.some(a=>x.w[0].includes(a))):[];
+  detail.innerHTML=`
+    <div class="head"><div class="seal" aria-hidden="true">${P.n.slice(0,3)}</div><div>
+      <h2>${esc(P.n)}</h2><p class="meta">${esc(P.r)}<br>在 ${P.m.length} 站里出现，地图上的实心点是这些地方</p></div></div>
+    <div class="body"><p>${esc(P.i)}</p></div>
+    <h3>和王阳明的交集</h3>
+    <ul class="meet">${P.m.map(x=>`<li><button type="button" data-go="${x[0]}"><span class="mw"><b>${PLACES[STOPS[x[0]].p].n}</b>${STOPS[x[0]].yr}</span><span class="mt">${esc(x[1])}</span></button></li>`).join("")}</ul>
+    ${letters.length?`<h3>写给他的文字</h3><p class="hint">题目里出现此人的书信、祭文、赠序，共 ${letters.length} 篇。</p>
+    <div class="qres">${letters.map(x=>`<button type="button" data-si="${x.si}" data-k="${x.k}"><span class="rt">${esc(x.w[0])}</span><span class="rs">${x.si<0?"待考":PLACES[STOPS[x.si].p].n+" "+STOPS[x.si].yr}</span></button>`).join("")}</div>`:""}
+    <button type="button" class="linkbtn" data-q="${esc(P.q)}">在全部作品里找“${esc(P.q)}”</button>
+    <p class="hint">点任意一行，跳到那一站。</p>`;
+}
+detail.addEventListener("click",e=>{
+  const w=e.target.closest(".qres button[data-k]");if(w){openWork(+w.dataset.si,w.dataset.k);return;}
+  const b=e.target.closest("button[data-q]");if(!b)return;
+  const q=document.getElementById("q");q.value=b.dataset.q;q.dispatchEvent(new Event("input"));
+  q.scrollIntoView({block:"center",behavior:"smooth"});
+});
+
+fetch("works.json").then(r=>{if(!r.ok)throw 0;return r.json();}).then(d=>{
+  /* 诗的原文是繁体，转成简体；转换库没载入时就照繁体显示 */
+  let conv=s=>s;
+  try{if(window.OpenCC)conv=OpenCC.Converter({from:"t",to:"cn"});}catch(e){}
+  const cv=a=>a.forEach(w=>{w[0]=conv(w[0]);w[1]=conv(w[1]);});
+  d.s.forEach(x=>{cv(x.p);cv(x.c);});cv(d.u.p);cv(d.u.c);
+  WORKS=d;
+  let np=0,nc=0;
+  d.s.forEach((x,si)=>{np+=x.p.length;nc+=x.c.length;x.c.forEach((w,j)=>INDEX.push({si,k:"c"+j,w}));x.p.forEach((w,j)=>INDEX.push({si,k:"p"+j,w}));});
+  d.u.c.forEach((w,j)=>INDEX.push({si:-1,k:"c"+j,w}));d.u.p.forEach((w,j)=>INDEX.push({si:-1,k:"p"+j,w}));
+  document.getElementById("stat").textContent=`已归入各站：诗 ${np} 首`;
+  const bb=document.getElementById("bucketBtn");
+  bb.textContent=`另有待考：诗 ${d.u.p.length} 首`;bb.hidden=false;
+  if(view==="stop")renderFull();
+  return fetch("prose.json").then(r=>{if(!r.ok)throw 0;return r.json();}).then(pd=>{
+    /* 文章有两百多万字，分批转换，免得页面卡住 */
+    const all=[];pd.s.forEach(a=>all.push(...a));pd.u.forEach(g=>all.push(...g.w));
+    let i=0;
+    (function step(){
+      const end=Math.min(i+120,all.length);
+      for(;i<end;i++){all[i][0]=conv(all[i][0]);all[i][1]=conv(all[i][1]);}
+      if(i<all.length){setTimeout(step,0);return;}
+      pd.u.forEach(g=>g.g=conv(g.g));
+      (pd.bio||[]).forEach(w=>{w[1]=conv(w[1]);});
+      if(pd.bio)document.getElementById("bioBtn").hidden=false;
+      PROSE=pd;
+      let nw=0;
+      pd.s.forEach((a,si)=>{nw+=a.length;a.forEach((w,j)=>INDEX.push({si,k:"w"+j,w}));});
+      pd.u.forEach((g,gi)=>g.w.forEach((w,j)=>INDEX.push({si:-1,k:`g${gi}_${j}`,w})));
+      const nu=pd.u.reduce((n,g)=>n+g.w.length,0);
+      document.getElementById("stat").textContent=`已归入各站：诗 ${np} 首、文 ${nw} 篇`;
+      bb.textContent=`另有待考：诗 ${d.u.p.length} 首、文 ${nu} 篇`;
+      if(view==="stop")renderFull();else if(view==="bucket")showBucket();
+    })();
+  }).catch(()=>{document.getElementById("stat").textContent+="（文章没有载入成功）";});
+}).catch(()=>{WORKS=false;document.getElementById("stat").textContent="全集没有载入成功";renderFull();});
+detail.addEventListener("click",e=>{const b=e.target.closest("button[data-go]");if(b&&!b.disabled)go(+b.dataset.go);});
+document.addEventListener("keydown",e=>{
+  if(e.target.closest("input,textarea,summary"))return;
+  if(e.key==="ArrowRight")go(cur+1);
+  if(e.key==="ArrowLeft")go(cur-1);
+});
+const m=/^#s(\d+)$/.exec(location.hash);
+go(m?+m[1]-1:0);
+</script>
+
+<script>
+/* ---------- 琴声：两首古琴录音轮播，点了才开始下载 ---------- */
+(function(){
+  const btn=document.getElementById("qinBtn"),vol=document.getElementById("qinVol"),now=document.getElementById("qinNow"),nx=document.getElementById("qinNext");
+  if(!btn)return;
+  const TRACKS=[{src:"zuiyu.mp3",t:"《醉渔唱晚》"},{src:"pingsha.mp3",t:"《平沙落雁》"}];
+  let a=null,i=0,on=false;
+  const setVol=()=>{if(a)a.volume=Math.pow(vol.value/100,1.6);};
+  function play(k){
+    i=(k+TRACKS.length)%TRACKS.length;
+    now.textContent="正在载入"+TRACKS[i].t+"…";
+    a.src=TRACKS[i].src;
+    const p=a.play();if(p&&p.catch)p.catch(()=>{if(on)now.textContent="没能开始播放，再点一次试试";});
+  }
+  function start(){
+    if(!a){
+      a=new Audio();a.preload="auto";
+      a.addEventListener("playing",()=>{now.textContent="正在播放"+TRACKS[i].t;});
+      a.addEventListener("waiting",()=>{if(on)now.textContent="正在载入"+TRACKS[i].t+"…";});
+      a.addEventListener("ended",()=>{if(on)play(i+1);});
+      a.addEventListener("error",()=>{if(on)now.textContent=TRACKS[i].t+"没有载入成功";});
+      window.__qin=a;
+    }
+    on=true;setVol();
+    btn.setAttribute("aria-pressed","true");btn.textContent="琴声 · 关";vol.hidden=false;nx.hidden=false;now.hidden=false;
+    if(a.src&&!a.ended)a.play();else play(i);
+  }
+  function stop(){
+    on=false;if(a)a.pause();
+    btn.setAttribute("aria-pressed","false");btn.textContent="琴声 · 开";vol.hidden=true;nx.hidden=true;now.hidden=true;
+  }
+  btn.addEventListener("click",()=>on?stop():start());
+  nx.addEventListener("click",()=>{if(on)play(i+1);});
+  vol.addEventListener("input",setVol);
+})();
+</script>
+</body>
+</html>
