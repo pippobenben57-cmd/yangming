@@ -125,6 +125,10 @@ h3{font-size:.8rem;font-weight:600;letter-spacing:.3em;color:var(--ink-soft);mar
 .src a{color:inherit;text-underline-offset:3px;word-break:break-all}
 .home{align-self:flex-start;font-size:.84rem;color:var(--ink-soft);text-decoration:none;letter-spacing:.06em;margin-bottom:-8px}
 .home:hover{color:var(--ink);text-decoration:underline;text-underline-offset:4px}
+.cxl{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;border:1px solid var(--line);background:var(--panel);padding:10px 16px;text-decoration:none;color:var(--ink)}
+.cxl b{font-family:var(--display);font-weight:400;font-size:1.5rem;color:var(--seal)}
+.cxl span{font-size:.92rem;color:var(--ink-soft)}
+.cxl:hover{border-color:var(--seal)}
 .qin{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:.86rem;color:var(--ink-soft)}
 .qin button{border:1px solid var(--ink);padding:4px 14px;line-height:1.6;color:var(--ink)}
 .qin{flex-wrap:wrap;justify-content:flex-end}
@@ -187,6 +191,8 @@ input[type=search]::placeholder{color:var(--ink-soft)}
     <p class="sub">1472—1529 · 十八站 · 从余姚到南安。点地图上的地名，或顺着年表一站一站走；每站末尾有那里写下的全部诗文。</p>
     <div class="qin"><span id="qinNow" hidden></span><button type="button" id="qinNext" class="mini" hidden>换一首</button><input type="range" id="qinVol" min="0" max="100" value="60" aria-label="琴声音量" hidden><button type="button" id="qinBtn" aria-pressed="false">琴声 · 开</button></div>
   </header>
+
+  <a class="cxl" href="chuanxilu.html"><b>传习录</b><span>全本三卷三百四十二条：原文、白话、简注、校注，以及导读、核心概念、名段、名句 →</span></a>
 
   <nav class="strip" id="strip" aria-label="年表"></nav>
 
