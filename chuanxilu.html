@@ -76,6 +76,11 @@ article.it.hit{background:linear-gradient(90deg,var(--seal-soft),transparent 70%
 .it .t p,.it .b p{margin:0 0 6px}
 .it sup{font-family:var(--body);font-size:.62em;color:var(--seal);margin:0 1px}
 .it .b{margin:0 0 6px;max-width:40em}
+.it .jd{margin:10px 0 6px;padding:10px 14px;background:var(--panel);border:1px solid var(--line);max-width:44em;font-size:.95rem}
+.it .jd h5{margin:0 0 2px;font-family:var(--kai);font-weight:400;font-size:1rem;color:var(--seal);letter-spacing:.1em}
+.it .jd p{margin:0 0 8px}
+.it .jd p:last-child{margin-bottom:0}
+.nojd .it .jd{display:none}
 .it .n{margin:6px 0;font-size:.9rem;color:var(--soft);max-width:44em;border-left:2px solid var(--line);padding-left:10px}
 .it details{margin-top:4px;max-width:46em}
 .it summary{cursor:pointer;font-size:.84rem;color:var(--faint);list-style:none;display:inline-block}
@@ -87,8 +92,8 @@ article.it.hit{background:linear-gradient(90deg,var(--seal-soft),transparent 70%
 .pre{padding:18px 0;border-bottom:1px solid var(--line)}
 .pre .t{font-family:var(--kai);font-size:1.15rem;white-space:pre-line;margin:0 0 10px;max-width:38em}
 .pre .b{white-space:pre-line;max-width:40em;margin:0}
-.veil .it .b,.veil .it .n,.veil .pre .b{filter:blur(6px);cursor:pointer;user-select:none}
-.veil .it.show .b,.veil .it.show .n,.veil .pre.show .b{filter:none;cursor:auto;user-select:auto}
+.veil .it .b,.veil .it .n,.veil .it .jd,.veil .pre .b{filter:blur(6px);cursor:pointer;user-select:none}
+.veil .it.show .b,.veil .it.show .n,.veil .it.show .jd,.veil .pre.show .b{filter:none;cursor:auto;user-select:auto}
 @media (max-width:560px){article.it{grid-template-columns:minmax(0,1fr)}.it .no{padding-top:0}.it .t{font-size:1.14rem}}
 .pager{display:flex;justify-content:space-between;gap:16px;margin-top:22px;font-family:var(--kai);font-size:1.05rem}
 .pager button:hover{color:var(--seal)}
@@ -131,7 +136,7 @@ footer{margin-top:56px;padding-top:14px;border-top:1px solid var(--line);font-si
 <a class="home" href="../">← 渊默的学习小院</a><a class="home" href="./">← 王阳明行迹图</a>
 <header>
   <h1>传习录</h1>
-  <p class="sub">三卷，三百四十二条。每条有原文、白话、简注和校注；另有导读、核心概念、名段和名句。</p>
+  <p class="sub">三卷，三百四十二条。每条有原文、白话、解读、历史上的例子和校注；另有导读、核心概念、名段和名句。</p>
   <div class="find"><input id="q" type="search" placeholder="搜原文或白话，或直接输条号 275" aria-label="搜索传习录"></div>
 </header>
 <div id="qres" class="qres" hidden></div>
@@ -144,10 +149,11 @@ footer{margin-top:56px;padding-top:14px;border-top:1px solid var(--line);font-si
   <a href="#/how" data-t="how">怎么读</a>
 </nav>
 <main id="main"><p>正在取书……</p></main>
-<footer>原文与条下校注取自维基文库《傳習錄》（原文公有领域，校注依 CC BY-SA 4.0），繁体转为简体。白话、简注和各栏说明由 AI（Claude）撰写，未经专业学者校订，引用请核对纸质版本。详见“怎么读”末节。</footer>
+<footer>原文与条下校注取自维基文库《傳習錄》（原文公有领域，校注依 CC BY-SA 4.0），繁体转为简体。白话、解读、历史例子和各栏说明由 AI（Claude）撰写，未经专业学者校订，引用请核对纸质版本。详见“怎么读”末节。</footer>
 </div>
 <script src="cxl/cb1.js"></script><script src="cxl/cb2.js"></script><script src="cxl/cb3.js"></script><script src="cxl/cb4.js"></script><script src="cxl/cb5.js"></script>
 <script src="cxl/cb6.js"></script><script src="cxl/cb7.js"></script><script src="cxl/cb8.js"></script><script src="cxl/cb9.js"></script><script src="cxl/cb10.js"></script>
+<script src="cxl/cj1.js"></script><script src="cxl/cj2.js"></script><script src="cxl/cj3.js"></script><script src="cxl/cj4.js"></script><script src="cxl/cj5.js"></script><script src="cxl/cj6.js"></script>
 <script src="cxl/guide.js"></script>
 <script>
 "use strict";
@@ -155,7 +161,7 @@ const $=s=>document.querySelector(s),main=$("#main"),qres=$("#qres"),q=$("#q");
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const paras=s=>String(s).split("\n").filter(Boolean).map(x=>`<p>${x}</p>`).join("");
 const han=s=>s.replace(/[^一-鿿]/g,"");
-const CB=window.CB||{},CG=window.CG||{};
+const CB=window.CB||{},CG=window.CG||{},CJ=window.CJ||{};
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 let SECS=[],BYN={},IDX=[];
 
@@ -168,7 +174,7 @@ function item(it){
   const bh=CB[it.n]||[];
   const t=esc(it.t).replace(/〔(\d+)〕/g,"<sup>$1</sup>");
   const notes=it.notes.length?`<details><summary>校注 ${it.notes.length} 条</summary><ol class="notes">${it.notes.map(x=>`<li>${esc(x)}</li>`).join("")}</ol></details>`:"";
-  return `<article class="it" id="n${it.n}"><div class="no">${it.n}</div><div><div class="t">${paras(t)}</div>${bh[0]?`<div class="b">${paras(esc(bh[0]))}</div>`:""}${bh[1]?`<p class="n">${esc(bh[1])}</p>`:""}${notes}</div></article>`;
+  return `<article class="it" id="n${it.n}"><div class="no">${it.n}</div><div><div class="t">${paras(t)}</div>${bh[0]?`<div class="b">${paras(esc(bh[0]))}</div>`:""}${bh[1]?`<p class="n">${esc(bh[1])}</p>`:""}${CJ[it.n]?`<div class="jd"><h5>解读</h5><p>${esc(CJ[it.n][0])}</p><h5>历史上的例子</h5><p>${esc(CJ[it.n][1])}</p></div>`:""}${notes}</div></article>`;
 }
 function viewRead(i,n){
   i=Math.max(0,Math.min(SECS.length-1,i||0));const s=SECS[i],inf=info(s);
@@ -180,11 +186,12 @@ function viewRead(i,n){
   const head=`<div class="sec-head"><div class="ord">${esc(s.v)}${s.items.length?` · 第 ${esc(range(s))} 条`:""}</div><h2>${esc(label(s.h))}</h2>${inf?`<p>${esc(inf[3])}</p>`:""}${s.hn.length?`<p class="hn">${s.hn.map(esc).join("；")}</p>`:""}</div>`;
   const pv=SECS[i-1],nx=SECS[i+1];
   const pager=`<div class="pager">${pv?`<button data-sec="${i-1}">← ${esc(label(pv.h))}</button>`:"<span></span>"}${nx?`<button data-sec="${i+1}">${esc(label(nx.h))} →</button>`:"<span></span>"}</div>`;
-  main.innerHTML=`<div class="layout"><aside class="side">${side}<div class="opts"><label><input type="checkbox" id="veil"${store.get("cxl-veil")==="1"?" checked":""}>先遮住白话</label><label><input type="checkbox" id="opennotes">展开全部校注</label></div></aside><section id="book">${head}${pre}${s.items.map(item).join("")}${pager}</section></div>`;
+  main.innerHTML=`<div class="layout"><aside class="side">${side}<div class="opts"><label><input type="checkbox" id="veil"${store.get("cxl-veil")==="1"?" checked":""}>先遮住白话</label><label><input type="checkbox" id="showjd"${store.get("cxl-jd")==="0"?"":" checked"}>显示解读与例子</label><label><input type="checkbox" id="opennotes">展开全部校注</label></div></aside><section id="book">${head}${pre}${s.items.map(item).join("")}${pager}</section></div>`;
   const book=$("#book"),veil=$("#veil");book.classList.toggle("veil",veil.checked);
+  const sj=$("#showjd");book.classList.toggle("nojd",!sj.checked);sj.addEventListener("change",()=>{book.classList.toggle("nojd",!sj.checked);store.set("cxl-jd",sj.checked?"1":"0")});
   veil.addEventListener("change",()=>{book.classList.toggle("veil",veil.checked);store.set("cxl-veil",veil.checked?"1":"0")});
   $("#opennotes").addEventListener("change",e=>book.querySelectorAll("details").forEach(d=>d.open=e.target.checked));
-  book.addEventListener("click",e=>{if(!book.classList.contains("veil"))return;const a=e.target.closest(".it,.pre");if(a&&e.target.closest(".b,.n"))a.classList.add("show")});
+  book.addEventListener("click",e=>{if(!book.classList.contains("veil"))return;const a=e.target.closest(".it,.pre");if(a&&e.target.closest(".b,.n,.jd"))a.classList.add("show")});
   if(n){const el=document.getElementById("n"+n);if(el){el.classList.add("hit","show");el.scrollIntoView({block:"start"});return}}
   window.scrollTo(0,0);
 }
@@ -236,7 +243,7 @@ q.addEventListener("input",()=>{
 
 fetch("cxl/data.json").then(r=>{if(!r.ok)throw 0;return r.json()}).then(d=>{
   d.forEach(v=>v.secs.forEach(s=>{s.v=v.v;SECS.push(s)}));
-  SECS.forEach((s,i)=>s.items.forEach(it=>{BYN[it.n]=i;const t=it.t.replace(/〔\d+〕/g,""),bh=CB[it.n]||[];IDX.push({n:it.n,t,h:han(t),v:(bh[0]||"")+(bh[1]||"")})}));
+  SECS.forEach((s,i)=>s.items.forEach(it=>{BYN[it.n]=i;const t=it.t.replace(/〔\d+〕/g,""),bh=CB[it.n]||[];IDX.push({n:it.n,t,h:han(t),v:(bh[0]||"")+(bh[1]||"")+(CJ[it.n]?CJ[it.n].join(""):"")})}));
   route();
 }).catch(()=>{main.innerHTML="<p>原文没有取到，请刷新再试。</p>"});
 </script>
